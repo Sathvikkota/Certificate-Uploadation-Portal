@@ -1,0 +1,53 @@
+import boto3
+import base64
+from io import BytesIO
+from datetime import datetime
+
+s3 = boto3.client('s3')
+dynamodb = boto3.client('dynamodb')
+
+def lambda_handler(event, context):
+    try:
+        student_id = event['studentID']
+        student_name = event['studentName']
+        student_email = event['studentEmail']
+        program = event['program']
+        year = event['year']
+        certification_name = event['certificationName']
+        vendor_name = event['vendorName']
+        certification_url = event['certificationURL']
+        
+        file_name = event['fileName']
+        file_data = event['fileData'].split(',')[1]
+        
+        # Upload file to S3
+        s3.upload_fileobj(
+            Fileobj=BytesIO(base64.b64decode(file_data)),
+            Bucket='studentcertificates',
+            Key=file_name
+        )
+        
+        # Store file details in DynamoDB
+        timestamp = datetime.now().isoformat()
+        dynamodb.put_item(
+            TableName='studcert',
+            Item={
+                'fileId': {'S': file_name},
+                'studentID': {'S': student_id},  
+                'studentName': {'S': student_name},  
+                'studentEmail': {'S': student_email},
+                'program': {'S': program},
+                'year': {'S': year},
+                'certificationName': {'S': certification_name},
+                'vendorName': {'S': vendor_name},
+                'certificationURL': {'S': certification_url},
+                's3Location': {'S': f'https://studentcertificates.s3.us-east-1.amazonaws.com/{file_name}'},
+                'uploadedAt': {'S': timestamp}
+            }
+        )
+        
+        return {'message': 'Data uploaded successfully'}
+    
+    except Exception as e:
+        print("Error:", e)
+        raise Exception('Failed to upload data')
